@@ -71,8 +71,10 @@ Meteor.startup(() => {
 
       let language = shop && shop.language || "en";
 
-      if (Meteor.user() && Meteor.user().profile && Meteor.user().profile.lang) {
+      try {
         language = Meteor.user().profile.lang;
+      } catch (ex) {
+        language = "en";
       }
       //
       // subscribe to user + shop Translations
