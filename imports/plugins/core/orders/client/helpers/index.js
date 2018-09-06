@@ -1,9 +1,9 @@
 import { Reaction } from "/client/api";
 
-/*
+/**
  * @method getOrderRiskBadge
  * @private
- * @summary Selects appropriate color badge (e.g  danger, warning) value based on risklevel
+ * @summary Selects appropriate color badge (e.g  danger, warning) value based on risk level
  * @param {string} riskLevel - risk level value on the paymentMethod
  * @return {string} label - style color class based on risk level
  */
@@ -22,21 +22,18 @@ export function getOrderRiskBadge(riskLevel) {
   return label;
 }
 
-/*
+/**
  * @method getOrderRiskStatus
  * @private
  * @summary Gets the risk label on the paymentMethod object for a shop on an order.
- * An empty string is returned if the value is "normal" becuase we don't flag a normal charge
+ * An empty string is returned if the value is "normal" because we don't flag a normal charge
  * @param {object} order - order object
- * @return {string} label - risklevel value (if risklevel is not normal)
+ * @return {string} label - risk level value (if risk level is not normal)
  */
 export function getOrderRiskStatus(order) {
-  let riskLevel;
   const billingForShop = order.billing.find((billing) => billing.shopId === Reaction.getShopId());
-
-  if (billingForShop && billingForShop.paymentMethod && billingForShop.paymentMethod.riskLevel) {
-    riskLevel = billingForShop.paymentMethod.riskLevel;
-  }
+  const paymentMethod = (billingForShop && billingForShop.paymentMethod) || {};
+  const { riskLevel } = paymentMethod;
 
   // normal transactions do not need to be flagged
   if (riskLevel === "normal") {
@@ -51,8 +48,20 @@ export function getOrderRiskStatus(order) {
 }
 
 /**
- * filterWorkflowStatus
- *
+ * @method getTaxRiskStatus
+ * @private
+ * @summary Gets the tax status of the order.
+ * @param {object} order - order object
+ * @return {boolean} label - true if the tax was not submitted by user.
+ */
+export function getTaxRiskStatus(order) {
+  return order.taxCalculationFailed || order.bypassAddressValidation;
+}
+
+/**
+ * @name filterWorkflowStatus
+ * @method
+ * @memberof Helpers
  * @summary get query for a given filter
  * @param {String} filter - filter string to check against
  * @return {Object} query for the workflow status
@@ -111,8 +120,8 @@ export function filterWorkflowStatus(filter) {
 }
 
 /**
- * filterShippingStatus
- *
+ * @name filterShippingStatus
+ * @memberof Helpers
  * @summary get query for a given filter
  * @param {String} filter - filter string to check against
  * @return {Object} query for the shipping status
@@ -152,29 +161,25 @@ export function filterShippingStatus(filter) {
 }
 
 /**
- * getBillingInfo
- *
+ * @name getBillingInfo
+ * @memberof Helpers
  * @summary get proper billing object as per current active shop
  * @param {Object} order - order object to check against
  * @return {Object} proper billing object to use
  */
 export function getBillingInfo(order) {
-  const billingInfo = order && order.billing && order.billing.find((billing) => {
-    return billing && (billing.shopId === Reaction.getShopId());
-  });
+  const billingInfo = order && order.billing && order.billing.find((billing) => billing && (billing.shopId === Reaction.getShopId()));
   return billingInfo || {};
 }
 
 /**
- * getShippingInfo
- *
+ * @name getShippingInfo
+ * @memberof Helpers
  * @summary get proper shipping object as per current active shop
  * @param {Object} order - order object to check against
  * @return {Object} proper shipping object to use
  */
 export function getShippingInfo(order) {
-  const shippingInfo = order && order.shipping && order.shipping.find((shipping) => {
-    return shipping && shipping.shopId === Reaction.getShopId();
-  });
+  const shippingInfo = order && order.shipping && order.shipping.find((shipping) => shipping && shipping.shopId === Reaction.getShopId());
   return shippingInfo || {};
 }

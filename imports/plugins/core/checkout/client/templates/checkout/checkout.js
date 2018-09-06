@@ -1,7 +1,8 @@
-import { Reaction } from "/client/api";
-import { Cart } from "/lib/collections";
+import _ from "lodash";
 import { Meteor } from "meteor/meteor";
 import { Template } from "meteor/templating";
+import { Reaction } from "/client/api";
+import getCart from "/imports/plugins/core/cart/client/util/getCart";
 import "./checkout.html";
 
 //
@@ -11,29 +12,38 @@ import "./checkout.html";
 
 Template.cartCheckout.helpers({
   cart() {
-    if (Reaction.Subscriptions.Cart.ready()) {
-      return Cart.findOne();
-    }
-    return {};
+    const { cart } = getCart();
+    return cart;
   },
-  cartCount() {
-    const cart = Cart.findOne();
-    if (cart.items && cart.items.length > 0) {
-      return true;
-    }
-    return false;
-  }
+  cartHasItems() {
+    const { cart } = getCart();
+    return (cart && cart.items && cart.items.length > 0) || false;
+  },
+  isSubmittingCheckoutPayment: () => Reaction.isSubmittingCheckoutPayment
 });
 
 
-Template.cartCheckout.onCreated(function () {
-  if (Reaction.Subscriptions.Cart.ready()) {
-    const cart = Cart.findOne();
+Template.cartCheckout.onCreated(function onCreated() {
+  let previousCartShipping;
+  this.autorun(() => {
+    const { cart, token } = getCart();
     if (cart && cart.workflow && cart.workflow.status === "new") {
       // if user logged in as normal user, we must pass it through the first stage
       Meteor.call("workflow/pushCartWorkflow", "coreCartWorkflow", "checkoutLogin", cart._id);
     }
-  }
+
+    if (cart) {
+      const partialShipping = (cart.shipping || [])
+        .filter((group) => group.type === "shipping")
+        .map(({ _id, address, itemIds, shopId, type }) => ({ _id, address, itemIds, shopId, type }));
+      if (!_.isEqual(previousCartShipping, partialShipping)) {
+        previousCartShipping = partialShipping;
+        partialShipping.forEach(({ _id }) => {
+          Meteor.call("shipping/updateShipmentQuotes", cart._id, _id, token);
+        });
+      }
+    }
+  });
 });
 
 /**
@@ -42,14 +52,11 @@ Template.cartCheckout.onCreated(function () {
  * the current step, or has been processed already
  */
 Template.checkoutSteps.helpers({
-  isCompleted: function () {
-    if (this.status === true) {
-      return this.status;
-    }
-    return false;
+  isCompleted() {
+    return this.status === true;
   },
 
-  isPending: function () {
+  isPending() {
     if (this.status === this.template) {
       return this.status;
     }
@@ -61,9 +68,8 @@ Template.checkoutSteps.helpers({
  * checkoutStepBadge Helpers
  */
 Template.checkoutStepBadge.helpers({
-  checkoutStepBadgeClass: function () {
+  checkoutStepBadgeClass() {
     const workflowStep = Template.instance().data;
-    // let currentStatus = Cart.findOne().workflow.status;
     if (workflowStep.status === true || workflowStep.status === this.template) {
       return "active";
     }

@@ -1,22 +1,52 @@
 import _ from "lodash";
+import Hooks from "@reactioncommerce/hooks";
+import Logger from "@reactioncommerce/logger";
 import { Meteor } from "meteor/meteor";
-import { Roles } from "meteor/alanning:roles";
 import { check, Match } from "meteor/check";
 import { Cart, Orders, Packages, Groups } from "/lib/collections";
-import { Logger, Reaction } from "/server/api";
+import Reaction from "/imports/plugins/core/core/server/Reaction";
 
 /* eslint no-shadow: 0 */
+
+/**
+ * @summary Updates a hook to update orders status before updating an order.
+ * @param {String} userId - currently logged in user
+ * @param {Object} selector - selector for product to update
+ * @param {Object} modifier - Object describing what parts of the document to update.
+ * @param {Object} validation
+ * @return {String} _id of updated document
+ * @private
+ */
+function updateOrderWorkflow(userId, selector, modifier, validation) {
+  const order = Orders.findOne(selector);
+
+  Hooks.Events.run("beforeUpdateOrderWorkflow", order, {
+    userId,
+    modifier,
+    validation
+  });
+
+  Logger.debug("beforeUpdateOrderWorkflow hook executed before Order is updated");
+
+  const result = Orders.update(selector, modifier, validation);
+
+  // Update mongo search record
+  Hooks.Events.run("afterUpdateOrderUpdateSearchRecord", order);
+
+  return result;
+}
 
 /**
  * @file Methods for Workflow. Run these methods using `Meteor.call()`.
  * @example Meteor.call("workflow/pushCartWorkflow", "coreCartWorkflow", "checkoutLogin");
  *
- * @namespace Methods/Workflow
-*/
+ * @namespace Workflow/Methods
+ */
+
 Meteor.methods({
   /**
    * @name workflow/pushCartWorkflow
-   * @memberof Methods/Workflow
+   * @memberof Workflow/Methods
    * @method
    * @example Meteor.call("workflow/pushCartWorkflow", "coreCartWorkflow", "checkoutLogin");
    * @summary updates cart workflow status
@@ -29,66 +59,50 @@ Meteor.methods({
    * @param {String} [cartId] - cart._id
    * @return {Array|Boolean|Number} return
    */
-  "workflow/pushCartWorkflow": function (workflow, newWorkflowStatus, cartId) {
+  "workflow/pushCartWorkflow"(workflow, newWorkflowStatus, cartId) {
     check(workflow, String);
     check(newWorkflowStatus, String);
-    check(cartId, Match.Optional(String));
+    check(cartId, String);
     this.unblock();
 
-    let currentCart;
     const defaultPackageWorkflows = [];
     let nextWorkflowStep = {
       template: ""
     };
 
-    // This method could be called indirectly from publication method in a time
-    // when `this.userId` will be null, that's why we have a third argument in
-    // this method - `cartId`. So, we can't completely rely on `Meteor.userId()`
-    // here.
-    if (typeof cartId === "string") {
-      currentCart = Cart.findOne(cartId);
-    } else {
-      currentCart = Cart.findOne({
-        userId: this.userId
-      });
+    const currentCart = Cart.findOne({ _id: cartId });
+    if (!currentCart) {
+      Logger.error(`pushCartWorkflow: Cart with ID ${cartId} not found`);
+      throw new Meteor.Error("not-found", "Cart not found");
     }
-    // exit if a cart doesn't exist.
-    if (!currentCart) return [];
+
+    const shopId = Reaction.getShopId();
+
     // TODO doc this
     const currentWorkflowStatus = currentCart.workflow.status;
     const packages = Packages.find({
-      "shopId": Reaction.getShopId(),
+      shopId,
       "layout.workflow": workflow
     });
 
     // loop through packages and set the defaultPackageWorkflows
-    packages.forEach(function (reactionPackage) {
+    packages.forEach((reactionPackage) => {
       // todo fix this hack for not filtering nicely
       if (!reactionPackage.layout.layout) {
         const layouts = _.filter(reactionPackage.layout, {
-          workflow: workflow
+          workflow
         });
         // for every layout, process the associated workflows
-        _.each(layouts, function (layout) {
+        _.each(layouts, (layout) => {
           // audience is the layout permissions
           if (typeof layout.audience !== "object") {
             const defaultRoles = Groups.findOne({
               slug: "customer",
-              shopId: Reaction.getShopId()
+              shopId
             }).permissions;
             layout.audience = defaultRoles;
           }
-          // check permissions so you don't have to on template. For a case, when
-          // this method calls indirectly from publication method, we do this
-          // check which is looks not pretty secure
-          let hasPermission;
-          if (typeof Meteor.userId() !== "string") {
-            hasPermission = Roles.userIsInRole(currentCart.userId, layout.audience, Reaction.getShopId());
-          } else {
-            hasPermission = Roles.userIsInRole(Meteor.userId(), layout.audience, Reaction.getShopId());
-          }
-
-          if (hasPermission  && !layout.layout) {
+          if (!layout.layout) {
             defaultPackageWorkflows.push(layout);
           }
         });
@@ -110,7 +124,7 @@ Meteor.methods({
     // loop through all shop configured layouts, and their default workflows
     // to determine what the next workflow step should be
     // the cart workflow status while processing is neither true nor false (set to template)
-    _.each(defaultPackageWorkflows, function (workflow, currentStatusIndex) {
+    _.each(defaultPackageWorkflows, (workflow, currentStatusIndex) => {
       if (workflow.template === currentWorkflowStatus) {
         // don't go past the end of the workflow
         if (currentStatusIndex < maxSteps - 1) {
@@ -151,10 +165,10 @@ Meteor.methods({
     // where you are in the flow and configures `gotoNextWorkflowStep`
 
     if (!gotoNextWorkflowStep && currentWorkflowStatus !== newWorkflowStatus) {
-      Logger.debug(
-        `######## Condition One #########: initialise the ${currentCart._id} ${workflow}: ${defaultPackageWorkflows[0].template}`
-      );
-      const result = Cart.update(currentCart._id, {
+      Logger.debug(`######## Condition One #########:
+        initialise the ${currentCart._id} ${workflow}:
+        ${defaultPackageWorkflows[0].template}`);
+      const result = Cart.update({ _id: currentCart._id }, {
         $set: {
           "workflow.status": defaultPackageWorkflows[0].template
         }
@@ -169,10 +183,9 @@ Meteor.methods({
     // and you should have already be in the current workflow template
     if (gotoNextWorkflowStep && statusExistsInWorkflow === false &&
       templateProcessedinWorkflow === false) {
-      Logger.debug("######## Condition Two #########: set status to: ",
-        nextWorkflowStep.template);
+      Logger.debug("######## Condition Two #########: set status to: ", nextWorkflowStep.template);
 
-      return Cart.update(currentCart._id, {
+      return Cart.update({ _id: currentCart._id }, {
         $set: {
           "workflow.status": nextWorkflowStep.template
         },
@@ -187,10 +200,11 @@ Meteor.methods({
     // we're going to do our best to ignore you.
     if (gotoNextWorkflowStep && statusExistsInWorkflow === true &&
       templateProcessedinWorkflow === false) {
-      Logger.debug("######## Condition Three #########: complete workflow " +
-        currentWorkflowStatus + " updates and move to: ",
-      nextWorkflowStep.template);
-      return Cart.update(currentCart._id, {
+      Logger.debug(
+        `######## Condition Three #########: complete workflow ${currentWorkflowStatus} updates and move to: `,
+        nextWorkflowStep.template
+      );
+      return Cart.update({ _id: currentCart._id }, {
         $set: {
           "workflow.status": nextWorkflowStep.template
         },
@@ -207,14 +221,15 @@ Meteor.methods({
       templateProcessedinWorkflow === true) {
       Logger.debug(
         "######## Condition Four #########: previously ran, doing nothing. : ",
-        newWorkflowStatus);
+        newWorkflowStatus
+      );
       return true;
     }
   },
 
   /**
    * @name workflow/revertCartWorkflow
-   * @memberof Methods/Workflow
+   * @memberof Workflow/Methods
    * @method
    * @summary if something was changed on the previous `cartWorkflow` steps,
    * we need to revert to this step to renew the order
@@ -222,26 +237,29 @@ Meteor.methods({
    * @todo need tests
    * @return {Number|Boolean} cart update results
    */
-  "workflow/revertCartWorkflow": function (newWorkflowStatus) {
+  "workflow/revertCartWorkflow"(newWorkflowStatus, cartId) {
     check(newWorkflowStatus, String);
+    check(cartId, String);
     this.unblock();
 
-    const cart = Cart.findOne({
-      userId: this.userId
-    });
+    const cart = Cart.findOne({ _id: cartId });
+    if (!cart) {
+      Logger.error(`revertCartWorkflow: Cart with ID ${cartId} not found`);
+      throw new Meteor.Error("not-found", "Cart not found");
+    }
 
-    if (!cart || typeof cart.workflow !== "object") return false;
+    if (typeof cart.workflow !== "object") return false;
     if (typeof cart.workflow.workflow !== "object") return false;
 
     const { workflow } = cart.workflow;
     // get index of `newWorkflowStatus`
     const resetToIndex = workflow.indexOf(newWorkflowStatus);
     // exit if no such step in workflow
-    if (!~resetToIndex) return false;
+    if (resetToIndex < 0) return false;
     // remove all steps that further `newWorkflowStatus` and itself
     const resetedWorkflow = workflow.slice(0, resetToIndex);
 
-    return Cart.update(cart._id, {
+    return Cart.update({ _id: cart._id }, {
       $set: {
         "workflow.status": newWorkflowStatus,
         "workflow.workflow": resetedWorkflow
@@ -260,32 +278,38 @@ Meteor.methods({
    * Step 2 (this method) of the "workflow/pushOrderWorkflow" flow; Try to update the current status
    *
    * @method
-   * @memberof Methods/Workflow
+   * @memberof Workflow/Methods
    * @param  {String} workflow workflow to push to
    * @param  {String} status - Workflow status
    * @param  {Order} order - Schemas.Order, an order object
    * @return {Boolean} true if update was successful
    */
-  "workflow/pushOrderWorkflow": function (workflow, status, order) {
+  "workflow/pushOrderWorkflow"(workflow, status, order) {
     check(workflow, String);
     check(status, String);
-    check(order, Object); // TODO: Validatate as Schemas.Order
+    check(order, Match.ObjectIncluding({
+      _id: String
+    }));
     this.unblock();
 
     const workflowStatus = `${workflow}/${status}`;
 
-    const result = Orders.update({
-      _id: order._id
-    }, {
-      $set: {
-        // Combine (workflow) "coreOrderWorkflow", (status) "processing" into "coreOrderWorkflow/processing".
-        // This comoniation will be used to call the method "workflow/coreOrderWorkflow/processing", if it exists.
-        "workflow.status": `${workflow}/${status}`
+    const result = updateOrderWorkflow(
+      this.userId,
+      {
+        _id: order._id
       },
-      $addToSet: {
-        "workflow.workflow": workflowStatus
+      {
+        $set: {
+          // Combine (workflow) "coreOrderWorkflow", (status) "processing" into "coreOrderWorkflow/processing".
+          // This comoniation will be used to call the method "workflow/coreOrderWorkflow/processing", if it exists.
+          "workflow.status": `${workflow}/${status}`
+        },
+        $addToSet: {
+          "workflow.workflow": workflowStatus
+        }
       }
-    });
+    );
 
     return result;
   },
@@ -295,16 +319,21 @@ Meteor.methods({
    * @description Push the status as the current workflow step, move the current status to completed worflow steps
    * @summary Pull a previous order status
    * @method
-   * @memberof Methods/Workflow
+   * @memberof Workflow/Methods
    * @param  {String} workflow workflow to push to
    * @param  {String} status - Workflow status
    * @param  {Order} order - Schemas.Order, an order object
    * @return {Boolean} true if update was successful
    */
-  "workflow/pullOrderWorkflow": function (workflow, status, order) {
+  "workflow/pullOrderWorkflow"(workflow, status, order) {
     check(workflow, String);
     check(status, String);
-    check(order, Object);
+    check(order, Match.ObjectIncluding({
+      _id: String,
+      workflow: Match.ObjectIncluding({
+        status: String
+      })
+    }));
     this.unblock();
 
     const result = Orders.update({
@@ -324,18 +353,34 @@ Meteor.methods({
   /**
    * @name workflow/pushItemWorkflow
    * @method
-   * @memberof Methods/Workflow
+   * @memberof Workflow/Methods
    * @param  {String} status  Workflow status
    * @param  {Object} order   Schemas.Order, an order object
    * @param  {String[]} itemIds Array of item IDs
    * @return {Boolean}         true if update was successful
    */
-  "workflow/pushItemWorkflow": function (status, order, itemIds) {
+  "workflow/pushItemWorkflow"(status, order, itemIds) {
     check(status, String);
-    check(order, Object);
+    check(order, Match.ObjectIncluding({
+      _id: String,
+      items: [Object]
+    }));
     check(itemIds, Array);
 
-    const items = order.items.map((item) => {
+    // We can't trust the order from the client (for several reasons)
+    // Initially because in a multi-merchant scenario, the order from the client
+    // will contain only the items associated with their shop
+    // We'll get the order from the db that has all the items
+
+    // TODO: Resolve potential concurrency issue where any writes to the order items
+    // between this read and the Orders.update write below would be lost.
+    const dbOrder = Orders.findOne({ _id: order._id });
+    const items = dbOrder.items.map((item) => {
+      // Don't modify items unless they in our itemIds array
+      if (!itemIds.includes(item._id)) {
+        return item;
+      }
+
       // Add the current status to completed workflows
       if (item.workflow.status !== "new") {
         const workflows = item.workflow.workflow || [];
@@ -350,12 +395,15 @@ Meteor.methods({
     });
 
     const result = Orders.update({
-      _id: order._id
+      _id: dbOrder._id
     }, {
       $set: {
-        items: items
+        items
       }
     });
+
+    // Update search record
+    Hooks.Events.run("afterUpdateOrderUpdateSearchRecord", order);
 
     return result;
   }

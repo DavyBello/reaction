@@ -1,28 +1,26 @@
-import { indexOf } from "lodash";
+import Hooks from "@reactioncommerce/hooks";
 import { Meteor } from "meteor/meteor";
+import appEvents from "/imports/plugins/core/core/server/appEvents";
 import { Cart } from "/lib/collections";
 
-/**
-* Cart Hooks for Discounts
-* @type {Object}
-* @desc After cart update apply discounts.
-* if items are changed, recalculating discounts
-* we could have done this in the core/cart transform
-* but this way this file controls the events from
-* the core/discounts plugin.
-* @todo just move so a single Hook.event and move all the
-* cart hooks to a single location.
-*/
-Cart.after.update((userId, cart, fieldNames) => {
-  const trigger = ["discount", "billing", "shipping"];
-  if (cart) {
-    let discount = cart.discount;
-    for (const field of fieldNames) {
-      if (indexOf(trigger, field) !== -1) {
-        discount = Meteor.call("discounts/calculate", cart);
-      }
-    }
-    // Update cart (without triggering more updates.)
-    Cart.direct.update({ _id: cart._id }, { $set: { discount: discount } });
+appEvents.on("afterCartUpdate", (cartId, cart) => {
+  if (!cartId) {
+    throw new Error("afterCartUpdate hook run with no cartId argument");
   }
+
+  if (typeof cartId !== "string") {
+    throw new Error("afterCartUpdate hook run with non-string cartId argument");
+  }
+
+  if (!cart) {
+    throw new Error("afterCartUpdate hook run with no cart argument");
+  }
+
+  const discount = Meteor.call("discounts/calculate", cart);
+  if (discount !== cart.discount) {
+    Cart.update({ _id: cart._id }, { $set: { discount } });
+  }
+
+  // Calculate taxes
+  Hooks.Events.run("afterCartUpdateCalculateTaxes", cartId);
 });

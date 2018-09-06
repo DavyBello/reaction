@@ -3,9 +3,9 @@ import { Meteor } from "meteor/meteor";
 import { Session } from "meteor/session";
 import { composeWithTracker } from "@reactioncommerce/reaction-components";
 import { Reaction, i18next } from "/client/api";
+import ReactionError from "@reactioncommerce/reaction-error";
 import { Tags, Shops } from "/lib/collections";
-import { TranslationProvider, AdminContextProvider } from "/imports/plugins/core/ui/client/providers";
-import { isRevisionControlEnabled } from "/imports/plugins/core/revisions/lib/api";
+import { AdminContextProvider } from "/imports/plugins/core/ui/client/providers";
 
 const handleAddProduct = () => {
   Reaction.setUserPreferences("reaction-dashboard", "viewAs", "administrator");
@@ -15,13 +15,14 @@ const handleAddProduct = () => {
       let currentTagId;
 
       if (error) {
-        throw new Meteor.Error("create-product-error", error);
+        throw new ReactionError("create-product-error", error);
       } else if (productId) {
         currentTagId = Session.get("currentTag");
         currentTag = Tags.findOne(currentTagId);
         if (currentTag) {
           Meteor.call("products/updateProductTags", productId, currentTag.name, currentTagId);
         }
+        Session.set("productGrid/selectedProducts", [productId]);
         // go to new product
         Reaction.Router.go("product", {
           handle: productId
@@ -32,11 +33,12 @@ const handleAddProduct = () => {
 };
 
 /**
-* Handler that fires when the shop selector is changed
-* @param {Object} event - the `event` coming from the select change event
-* @param {String} shopId - The `value` coming from the select change event
-* @returns {undefined}
-*/
+ * @summary Handler that fires when the shop selector is changed
+ * @param {Object} event - the `event` coming from the select change event
+ * @param {String} shopId - The `value` coming from the select change event
+ * @returns {undefined}
+ * @private
+ */
 const handleShopSelectChange = (event, shopId) => {
   if (/^[A-Za-z0-9]{17}$/.test(shopId)) { // Make sure shopId is a valid ID
     Reaction.setShopId(shopId);
@@ -58,14 +60,14 @@ function composer(props, onData) {
 
     for (const item of registryItems) {
       if (Reaction.hasPermission(item.route, Meteor.userId())) {
-        let icon = item.icon;
+        let { icon } = item;
         if (!item.icon && item.provides && item.provides.includes("settings")) {
           icon = "gear";
         }
 
         packageButtons.push({
           href: item.route,
-          icon: icon,
+          icon,
           tooltip: i18next.t(item.i18nKeyLabel, item.i18n),
           tooltipPosition: "left middle",
           onClick() {
@@ -80,12 +82,11 @@ function composer(props, onData) {
     packageButtons,
     dashboardHeaderTemplate: props.data.dashboardHeader,
     isPreview: Reaction.isPreview(),
-    isEnabled: isRevisionControlEnabled(),
     isActionViewAtRootView: Reaction.isActionViewAtRootView(),
     actionViewIsOpen: Reaction.isActionViewOpen(),
     hasCreateProductAccess: Reaction.hasPermission("createProduct", Meteor.userId(), Reaction.getShopId()),
     shopId: Reaction.getShopId(),
-    shops: shops,
+    shops,
 
     // Callbacks
     onAddProduct: handleAddProduct,
@@ -97,11 +98,9 @@ function composer(props, onData) {
 export default function ToolbarContainer(Comp) {
   function CompositeComponent(props) {
     return (
-      <TranslationProvider>
-        <AdminContextProvider>
-          <Comp {...props} />
-        </AdminContextProvider>
-      </TranslationProvider>
+      <AdminContextProvider>
+        <Comp {...props} />
+      </AdminContextProvider>
     );
   }
 

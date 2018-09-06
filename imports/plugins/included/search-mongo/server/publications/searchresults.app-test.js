@@ -1,14 +1,19 @@
+/* eslint prefer-arrow-callback:0 */
 import faker from "faker";
 import { Factory } from "meteor/dburles:factory";
 import { expect } from "meteor/practicalmeteor:chai";
 import { sinon } from "meteor/practicalmeteor:sinon";
-import { Reaction } from "/server/api";
+import Reaction from "/imports/plugins/core/core/server/Reaction";
 import { getSlug } from "/lib/api";
-import { Products, OrderSearch } from "/lib/collections";
-import Fixtures from "/server/imports/fixtures";
+import { Accounts, Products, OrderSearch } from "/lib/collections";
+import Fixtures from "/imports/plugins/core/core/server/fixtures";
+import {
+  buildProductSearch,
+  buildProductSearchRecord,
+  buildAccountSearchRecord,
+  buildAccountSearch
+} from "../methods/searchcollections";
 import { getResults } from "./searchresults";
-import { buildProductSearch, buildProductSearchRecord, buildAccountSearchRecord,
-  buildAccountSearch } from "../methods/searchcollections";
 
 Fixtures();
 
@@ -41,9 +46,9 @@ export function createProduct(isVisible = true, title) {
         value: "Rubber"
       }
     ],
-    requiresShipping: true,
+    supportedFulfillmentTypes: ["shipping"],
     hashtags: [],
-    isVisible: isVisible,
+    isVisible,
     handle: productSlug,
     workflow: {
       status: "new"
@@ -124,18 +129,25 @@ describe("Account Search results", function () {
   beforeEach(function () {
     sandbox = sinon.sandbox.create();
     account = createAccount();
-    buildAccountSearchRecord(account._id);
+    Accounts.update({ _id: account._id }, {
+      $set: {
+        "emails.0.address": "matchemail@searchtest.com"
+      }
+    });
+    // Passing forceIndex will run account search index even if
+    // updated fields don't match a searchable field
+    buildAccountSearchRecord(account._id, ["forceIndex"]);
   });
 
   afterEach(function () {
+    Accounts.remove({});
     sandbox.restore();
   });
 
   describe("account search", function () {
     it("should match accounts when searching by email", function () {
       sandbox.stub(Reaction, "hasPermission", () => true);
-      const email = account.emails[0].address;
-      const results = getResults.accounts(email);
+      const results = getResults.accounts("matchemail@searchtest.com");
       expect(results.count()).to.equal(1);
     });
 
@@ -156,6 +168,10 @@ describe("Order Search results", function () {
       billingName: "Bill Name",
       userEmails: ["test@example.com"]
     });
+  });
+
+  after(function () {
+    OrderSearch.remove({});
   });
 
   describe("order search", function () {

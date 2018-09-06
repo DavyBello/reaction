@@ -1,15 +1,18 @@
 // https://guide.meteor.com/react.html#using-with-blaze
 import React from "react";
 import ReactDOM from "react-dom";
+import { ApolloProvider } from "react-apollo";
 import _ from "lodash";
 import { Template } from "meteor/templating";
 import { Blaze } from "meteor/blaze";
+import initApollo from "/imports/plugins/core/graphql/lib/helpers/initApollo";
+
+// Ideally this will be done only in browserRouter.js, but we lose context within Blaze templates,
+// so until everything is converted to React, we need this here, too.
+const apolloClient = initApollo();
 
 // Empty template; logic in `onRendered` below
-Template.React = new Template("Template.React", function () {
-  return [];
-});
-
+Template.React = new Template("Template.React", () => []);
 
 Template.React.onRendered(function () {
   const parentTemplate = parentTemplateName();
@@ -21,13 +24,20 @@ Template.React.onRendered(function () {
 
     const comp = data && data.component;
     if (!comp) {
-      throw new Error(
-        "In template " + parentTemplate + ", call to `{{> React ... }}` missing " +
-          "`component` argument.");
+      throw new Error(`In template ${parentTemplate}, call to \`{{> React ... }}\` missing \`component\` argument.`);
     }
 
     const props = _.omit(data, "component");
-    ReactDOM.render(React.createElement(comp, props), container);
+    const elem = React.createElement(comp, props);
+
+    ReactDOM.render(
+      (
+        <ApolloProvider client={apolloClient}>
+          {elem}
+        </ApolloProvider>
+      ),
+      container
+    );
   });
 });
 

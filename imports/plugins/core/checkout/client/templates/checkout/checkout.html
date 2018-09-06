@@ -1,6 +1,5 @@
 <template name="cartCheckout">
-  {{#if cartCount}}
-
+  {{#if cartHasItems}}
     <div class="checkout-progress">
       <div class="container">
         {{>checkoutProgressBar}}
@@ -25,7 +24,9 @@
       </div>
     </div>
   {{else}}
-    {{> emptyCheckoutCart}}
+    {{#unless isSubmittingCheckoutPayment}}
+      {{> emptyCheckoutCart}}
+    {{/unless}}
   {{/if}}
 </template>
 

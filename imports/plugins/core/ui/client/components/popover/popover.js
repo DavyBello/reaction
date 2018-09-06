@@ -66,7 +66,7 @@ class Popover extends Component {
 
   renderPopoverChildren() {
     if (this.isOpen) {
-      return  (
+      return (
         <Components.PopoverContent
           children={this.props.children}
           onClickOutside={this.props.onClick}
@@ -101,6 +101,11 @@ class Popover extends Component {
   render() {
     return (
       <TetherComponent
+        style={{
+          maxHeight: "100vh",
+          overflowY: "auto",
+          boxShadow: this.props.showShadow ? "0 0 4px 2px rgba(0, 0, 0, 0.16)" : "none"
+        }}
         attachment={this.attachment}
         classPrefix="popover"
         className={classnames({
@@ -111,7 +116,8 @@ class Popover extends Component {
         })}
         constraints={this.props.constraints || [{
           to: "scrollParent",
-          attachment: "together"
+          attachment: "together",
+          pin: true
         }]}
         targetAttachment={this.props.targetAttachment}
       >
@@ -131,8 +137,9 @@ Popover.propTypes = {
   onClick: PropTypes.func,
   onDisplayButtonClick: PropTypes.func,
   onRequestOpen: PropTypes.func,
-  showArrow: PropTypes.bool,
-  showDropdownButton: PropTypes.bool,
+  showArrow: PropTypes.bool, // eslint-disable-line react/boolean-prop-naming
+  showDropdownButton: PropTypes.bool, // eslint-disable-line react/boolean-prop-naming
+  showShadow: PropTypes.bool, // eslint-disable-line react/boolean-prop-naming
   targetAttachment: PropTypes.string,
   tooltipContent: PropTypes.node
 };

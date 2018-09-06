@@ -1,6 +1,6 @@
 import { compose, withProps } from "recompose";
 import Alert from "sweetalert2";
-import { registerComponent, composeWithTracker } from "@reactioncommerce/reaction-components";
+import { registerComponent, composeWithTracker, withIsAdmin } from "@reactioncommerce/reaction-components";
 import { Meteor } from "meteor/meteor";
 import { Accounts, Groups } from "/lib/collections";
 import { Reaction, i18next } from "/client/api";
@@ -13,10 +13,13 @@ const handlers = {
 
       if (groupId === ownerGrpId) {
         return alertConfirm()
-          .then(() => {
-            return updateMethodCall(groupId);
+          .then(({ value }) => {
+            if (value) {
+              return updateMethodCall(groupId);
+            }
+            return null;
           })
-          .catch(() => {
+          .finally(() => {
             if (onMethodDone) { onMethodDone(); }
           });
       }
@@ -55,8 +58,11 @@ const handlers = {
   handleRemoveUserFromGroup(account, groupId) {
     return () => {
       alertConfirm()
-        .then(() => {
-          return removeMethodCall();
+        .then(({ value }) => {
+          if (value) {
+            return removeMethodCall();
+          }
+          return false;
         })
         .catch(() => false);
 
@@ -85,10 +91,9 @@ const handlers = {
 
 const composer = (props, onData) => {
   const shopId = Reaction.getShopId();
-  const adminUserSub = Meteor.subscribe("Accounts", null);
-  const grpSub = Meteor.subscribe("Groups");
+  const grpSub = Meteor.subscribe("Groups", { shopId });
 
-  if (adminUserSub.ready() && grpSub.ready()) {
+  if (Reaction.Subscriptions.Account.ready() && grpSub.ready()) {
     const groups = Groups.find({
       shopId: Reaction.getShopId()
     }).fetch();
@@ -101,7 +106,7 @@ const composer = (props, onData) => {
 
     const adminUsers = Meteor.users.find(adminQuery, { fields: { _id: 1 } }).fetch();
     const ids = adminUsers.map((user) => user._id);
-    const accounts = Accounts.find({ _id: { $in: ids } }).fetch();
+    const accounts = Accounts.find({ userId: { $in: ids } }).fetch();
     const adminGroups = groups.reduce((admGrps, group) => {
       if (group.slug !== "customer" && group.slug !== "guest") {
         admGrps.push(group);
@@ -114,11 +119,13 @@ const composer = (props, onData) => {
 };
 
 registerComponent("AccountsDashboard", AccountsDashboard, [
+  withIsAdmin,
   composeWithTracker(composer),
   withProps(handlers)
 ]);
 
 export default compose(
+  withIsAdmin,
   composeWithTracker(composer),
   withProps(handlers)
 )(AccountsDashboard);

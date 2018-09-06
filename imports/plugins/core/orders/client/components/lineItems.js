@@ -4,8 +4,7 @@ import { isEmpty } from "lodash";
 import classnames from "classnames";
 import { Meteor } from "meteor/meteor";
 import { Roles } from "meteor/alanning:roles";
-import { Reaction } from "/client/api";
-import { formatPriceString } from "/client/api";
+import { formatPriceString, Reaction } from "/client/api";
 import { Components, registerComponent } from "@reactioncommerce/reaction-components";
 
 /**
@@ -51,8 +50,8 @@ class LineItems extends Component {
     handleSelectAllItems: PropTypes.func,
     isRefunding: PropTypes.bool,
     order: PropTypes.object,
-    popOverIsOpen: PropTypes.bool,
-    selectAllItems: PropTypes.bool,
+    popOverIsOpen: PropTypes.bool, // eslint-disable-line react/boolean-prop-naming
+    selectAllItems: PropTypes.bool, // eslint-disable-line react/boolean-prop-naming
     selectedItems: PropTypes.array,
     uniqueItems: PropTypes.array
   }
@@ -60,13 +59,13 @@ class LineItems extends Component {
   displayMedia(uniqueItem) {
     const { displayMedia } = this.props;
 
-    if (displayMedia(uniqueItem)) {
-      return (
-        <img src={displayMedia(uniqueItem).url()}/>
-      );
-    }
     return (
-      <img src= "/resources/placeholder.gif" />
+      <Components.ProductImage
+        item={uniqueItem}
+        displayMedia={displayMedia}
+        size="thumbnail"
+        badge={false}
+      />
     );
   }
 
@@ -84,7 +83,7 @@ class LineItems extends Component {
 
           <div className="order-item-details">
             <div className="order-detail-title">
-              {uniqueItem.title} <br/><small>{uniqueItem.variants.title}</small>
+              {uniqueItem.title} <br/><small>{uniqueItem.variantTitle}</small>
             </div>
           </div>
 
@@ -94,7 +93,7 @@ class LineItems extends Component {
 
           <div className="order-detail-price">
             <div className="invoice-details" style={{ marginRight: 15 }}>
-              <strong>{formatPriceString(uniqueItem.variants.price)}</strong>
+              <strong>{formatPriceString(uniqueItem.priceWhenAdded.amount)}</strong>
             </div>
           </div>
 
@@ -128,7 +127,7 @@ class LineItems extends Component {
 
           <div className="order-item-details">
             <div className="order-detail-title">
-              {uniqueItem.title} <br/><small>{uniqueItem.variants.title}</small>
+              {uniqueItem.title} <br/><small>{uniqueItem.variantTitle}</small>
             </div>
           </div>
 
@@ -146,7 +145,7 @@ class LineItems extends Component {
 
           <div className="order-detail-price">
             <div className="invoice-details" style={{ marginRight: 15 }}>
-              <strong>{formatPriceString(uniqueItem.variants.price)}</strong>
+              <strong>{formatPriceString(uniqueItem.priceWhenAdded.amount)}</strong>
             </div>
           </div>
 
@@ -188,7 +187,7 @@ class LineItems extends Component {
               i18nKey="cartSubTotals.subtotal"
             />
           </b>
-          <span><b>{formatPriceString(uniqueItem.variants.price * uniqueItem.quantity)}</b></span>
+          <span><b>{formatPriceString(uniqueItem.priceWhenAdded.amount * uniqueItem.quantity)}</b></span>
         </div>
       </div>
     );
@@ -223,8 +222,7 @@ class LineItems extends Component {
                   <span>{formatPriceString(item.refundedTotal)}</span>
                 </div>
               </div>
-            )
-            )}
+            ))}
             <div className="refund-item return">
               <div>
                 <b><Components.Translation defaultValue="RETURN TOTAL" i18nKey="admin.invoice.refundTotal"/></b>
@@ -255,7 +253,7 @@ class LineItems extends Component {
         constraints={[
           {
             to: "scrollParent",
-            pin: true
+            pin: ["top", "bottom"]
           },
           {
             to: "window",
@@ -263,6 +261,7 @@ class LineItems extends Component {
           }
         ]}
         showDropdownButton={false}
+        showShadow
       >
         {this.popOverContent()}
       </Components.Popover>
@@ -329,18 +328,26 @@ class LineItems extends Component {
   render() {
     const { uniqueItems } = this.props;
     return (
-      <div className="invoice invoice-line-items" onClick={this.props.handlePopOverOpen}>
-        {uniqueItems.map((uniqueItem) => {
-          return (
-            <div key={uniqueItem._id}> {this.renderLineItem(uniqueItem)} </div>
-          );
-        })}
+      <Components.Button
+        tagName="div"
+        className={{
+          "btn": false,
+          "btn-default": false,
+          "flat": false,
+          "invoice": true,
+          "invoice-line-items": true
+        }}
+        onClick={this.props.handlePopOverOpen}
+      >
+        {uniqueItems.map((uniqueItem) => (
+          <div key={uniqueItem._id}> {this.renderLineItem(uniqueItem)} </div>
+        ))}
 
         {
           Roles.userIsInRole(Meteor.userId(), ["orders", "dashboard/orders"], Reaction.getShopId()) &&
           this.renderPopOver()
         }
-      </div>
+      </Components.Button>
     );
   }
 }

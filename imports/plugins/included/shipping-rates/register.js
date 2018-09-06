@@ -1,4 +1,4 @@
-import { Reaction } from "/server/api";
+import Reaction from "/imports/plugins/core/core/server/Reaction";
 
 Reaction.registerPackage({
   label: "Shipping Rates",
@@ -29,7 +29,7 @@ Reaction.registerPackage({
       label: "Flat Rate",
       description: "Provide shipping rates",
       icon: "fa fa-truck",
-      template: "shippingRatesSettings"
+      template: "ShippingRatesSettings"
     },
     {
       template: "flatRateCheckoutShipping",

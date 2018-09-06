@@ -1,12 +1,12 @@
 import { check } from "meteor/check";
 import { Templates } from "/lib/collections";
-import { Reaction } from "/server/api";
+import Reaction from "/imports/plugins/core/core/server/Reaction";
 
 export function getTemplateByName(name, shopId) {
   check(name, String);
 
   const template = Templates.findOne({
-    name: name,
+    name,
     shopId: shopId || Reaction.getShopId()
   });
 

@@ -1,4 +1,4 @@
-import { Reaction } from "/server/api";
+import Reaction from "/imports/plugins/core/core/server/Reaction";
 import * as TemplatePaths from "../lib/paths.js";
 
 /*
@@ -19,14 +19,26 @@ Reaction.registerTemplate({
  */
 
 /*
- * Accounts - Invite Shop member
+ * Accounts - Invite Shop member with an Existing User Account
  * When: Admin invites new member to shop
  */
 Reaction.registerTemplate({
-  title: "Accounts - Invite Shop Member",
+  title: "Accounts - Invite Shop Member - Existing User Account",
   name: TemplatePaths.inviteShopMemberTemplate,
   type: "email",
   template: Reaction.Email.getTemplateFile(TemplatePaths.inviteShopMemberTemplate),
+  subject: "You have been invited to join the group \"{{groupName}}\" in the store \"{{shop.name}}\""
+});
+
+/*
+ * Accounts - Invite Shop member and create new user account
+ * When: Admin invites new member to shop
+ */
+Reaction.registerTemplate({
+  title: "Accounts - Invite Shop Member - New User Account",
+  name: TemplatePaths.inviteNewShopMemberTemplate,
+  type: "email",
+  template: Reaction.Email.getTemplateFile(TemplatePaths.inviteNewShopMemberTemplate),
   subject: "You have been invited to join the group \"{{groupName}}\" in the store \"{{shop.name}}\""
 });
 

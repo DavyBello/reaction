@@ -1,11 +1,12 @@
+import Logger from "@reactioncommerce/logger";
 import _ from "lodash";
 import { Meteor } from "meteor/meteor";
 import { check, Match } from "meteor/check";
-import { Job } from "meteor/vsivsi:job-collection";
+import { Job } from "/imports/plugins/core/job-collection/lib";
 import { Packages, Jobs } from "/lib/collections";
-import { CorePackageConfig } from "/lib/collections/schemas";
-import { Logger, Reaction } from "/server/api";
-
+import ReactionError from "@reactioncommerce/reaction-error";
+import { SearchPackageConfig } from "../../lib/collections/schemas";
+import Reaction from "/imports/plugins/core/core/server/Reaction";
 
 function fieldsChanged(changedFields, fieldType = "includes") {
   for (const field of changedFields) {
@@ -21,10 +22,25 @@ function weightsChanged(changedFields) {
 }
 
 Meteor.methods({
-  "search/updateSearchSettings": function (modifier, _id) {
-    check(modifier, Match.Optional(CorePackageConfig));
-    check(_id, String);
-    const currentSettings = Packages.findOne(_id);
+  /**
+   * @name search/updateSearchSettings
+   * @method
+   * @memberof Search/Methods
+   * @param  {Object} details An object with _id and modifier props
+   * @param  {String} [docId] DEPRECATED. The _id, if details is the modifier.
+   */
+  "search/updateSearchSettings"(details, docId) {
+    check(details, Object);
+
+    // Backward compatibility
+    check(docId, Match.Optional(String));
+    const id = docId || details._id;
+    const modifier = docId ? details : details.modifier;
+
+    check(id, String);
+    SearchPackageConfig.validate(modifier, { modifier: true });
+
+    const currentSettings = Packages.findOne(id);
     const newSettingsArray = _.keys(modifier.$set);
     const changedSettings = [];
     for (const setting of newSettingsArray) {
@@ -35,7 +51,7 @@ Meteor.methods({
     }
     // must have core permissions
     if (!Reaction.hasPermission("core")) {
-      throw new Meteor.Error("access-denied", "Access Denied");
+      throw new ReactionError("access-denied", "Access Denied");
     }
     let rebuildJob;
     if (fieldsChanged(changedSettings)) {
@@ -69,7 +85,7 @@ Meteor.methods({
           cancelRepeats: true
         });
     }
-    Packages.update(_id, modifier);
+    Packages.update(id, modifier);
     return rebuildJob;
   }
 });

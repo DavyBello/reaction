@@ -1,6 +1,5 @@
 import React, { Component } from "react";
 import PropTypes from "prop-types";
-import createFragment from "react-addons-create-fragment";
 import classnames from "classnames/dedupe";
 import { Components, registerComponent } from "@reactioncommerce/reaction-components";
 
@@ -48,6 +47,14 @@ class Button extends Component {
       }
     } else if (this.props.onClick) {
       this.props.onClick(event, this.props.value);
+    }
+  }
+
+  handleKeyUp = (event) => {
+    // keyCode 32 (spacebar)
+    // keyCode 13 (enter/return)
+    if (event.keyCode === 32 || event.keyCode === 13) {
+      this.handleClick(event);
     }
   }
 
@@ -121,6 +128,30 @@ class Button extends Component {
     return null;
   }
 
+  getFragments(iconAfter) {
+    return (
+      <React.Fragment>
+        {iconAfter
+          ? <React.Fragment key={"label"}>
+              {this.renderLabel()}
+            </React.Fragment>
+          : <React.Fragment key={"icon"}>
+              {this.renderIcon()}
+            </React.Fragment>}
+        {iconAfter
+          ? <React.Fragment key={"icon"}>
+              {this.renderIcon()}
+            </React.Fragment>
+          : <React.Fragment key={"label"}>
+              {this.renderLabel()}
+            </React.Fragment>}
+        <React.Fragment key={"children"}>
+          {this.props.children}
+        </React.Fragment>
+      </React.Fragment>
+    );
+  }
+
   render() {
     const {
       active, status, toggleOn, primary, bezelStyle, className, containerStyle,
@@ -156,39 +187,37 @@ class Button extends Component {
       extraProps.href = "#";
     }
 
+    // If this button is not an anchor, or an actual button, then add
+    // some extra props related to ARIA compliance for interactive components.
+    //
+    // - onKeyUp event handler for keyboard navigation
+    // - role=button, as it's a simulated button
+    // - tabIndex=0 so it obeys the natural tab flow
+    if (tagName !== "button" && tagName !== "a") {
+      extraProps.onKeyUp = this.handleKeyUp;
+      extraProps.role = "button";
+      extraProps.tabIndex = 0;
+    }
+
     const buttonProps = Object.assign({
       "className": classes,
       "data-event-action": eventAction,
+      "onFocus": this.handleButtonMouseOver,
+      "onBlur": this.handleButtonMouseOut,
       "onMouseOut": this.handleButtonMouseOut,
       "onMouseOver": this.handleButtonMouseOver,
       "onClick": this.handleClick,
       "type": buttonType || "button"
     }, attrs, extraProps);
 
-
-    // Create a react fragment for all the button children
-    let buttonChildren;
-
-    if (iconAfter) {
-      buttonChildren = createFragment({
-        label: this.renderLabel(),
-        icon: this.renderIcon(),
-        children: this.props.children
-      });
-    } else {
-      buttonChildren = createFragment({
-        icon: this.renderIcon(),
-        label: this.renderLabel(),
-        children: this.props.children
-      });
-    }
-
     // Button with tooltip gets some special treatment
     if (tooltip) {
-      return React.createElement(tagName, buttonProps,
+      return React.createElement(
+        tagName,
+        buttonProps,
         <span className="rui btn-tooltip" style={{ display: "inline-flex", ...containerStyle }}>
           <Components.Tooltip attachment={tooltipAttachment} tooltipContent={this.renderTooltipContent()}>
-            {buttonChildren}
+            {this.getFragments(iconAfter)}
           </Components.Tooltip>
         </span>
       );
@@ -196,15 +225,16 @@ class Button extends Component {
 
     // Add a wrapped container with styles for standard button
     if (containerStyle) {
-      buttonChildren = (
+      return React.createElement(
+        tagName,
+        buttonProps,
         <div style={containerStyle}>
-          {buttonChildren}
-        </div>
-      );
+          {this.getFragments(iconAfter)}
+        </div>);
     }
 
     // Normal button, without tooltip
-    return React.createElement(tagName, buttonProps, buttonChildren);
+    return React.createElement(tagName, buttonProps, this.getFragments(iconAfter));
   }
 }
 

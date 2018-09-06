@@ -56,16 +56,16 @@ class DropDownMenu extends Component {
       }
     } else {
       this.setState({
-        isOpen: isOpen
+        isOpen
       });
     }
   }
 
   get label() {
-    let label = this.state.label;
+    let { label } = this.state;
     Children.forEach(this.props.children, (element) => {
       if (element.props.value === this.props.value) {
-        label = element.props.label;
+        ({ label } = element.props);
       }
     });
 
@@ -117,7 +117,7 @@ DropDownMenu.propTypes = {
   buttonElement: PropTypes.node,
   children: PropTypes.node,
   className: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
-  closeOnClick: PropTypes.bool,
+  closeOnClick: PropTypes.bool, // eslint-disable-line react/boolean-prop-naming
   constraints: PropTypes.array,
   isClickable: PropTypes.bool,
   isEnabled: PropTypes.bool,

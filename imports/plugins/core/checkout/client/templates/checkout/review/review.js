@@ -1,6 +1,7 @@
 import "./review.html";
 import { Meteor } from "meteor/meteor";
 import { Template } from "meteor/templating";
+import getCart from "/imports/plugins/core/cart/client/util/getCart";
 import CartSubTotals from "../../../containers/cartSubTotalContainer";
 
 /**
@@ -8,8 +9,11 @@ import CartSubTotals from "../../../containers/cartSubTotalContainer";
 * trigger checkoutPayment step on template checkoutReview render
 */
 
-Template.checkoutReview.onRendered(function () {
-  Meteor.call("workflow/pushCartWorkflow", "coreCartWorkflow", "checkoutReview");
+Template.checkoutReview.onRendered(() => {
+  const { cart } = getCart();
+  if (cart) {
+    Meteor.call("workflow/pushCartWorkflow", "coreCartWorkflow", "checkoutReview", cart._id);
+  }
 });
 
 Template.checkoutReview.helpers({

@@ -1,6 +1,6 @@
 import { Migrations } from "meteor/percolate:migrations";
 import { Cart, Orders } from "/lib/collections";
-import { Reaction } from "/server/api/";
+import Reaction from "/imports/plugins/core/core/server/Reaction";
 
 Migrations.add({
   version: 12,
@@ -11,27 +11,19 @@ Migrations.add({
 
     Orders.update({}, {
       $set: { "billing.0.shopId": shopId }
-    }, {
-      multi: true
-    });
+    }, { bypassCollection2: true, multi: true });
 
     Cart.update({}, {
       $set: { "billing.0.shopId": shopId }
-    }, {
-      multi: true
-    });
+    }, { bypassCollection2: true, multi: true });
   },
   down() {
     Orders.update({}, {
       $unset: { "billing.0.shopId": "" }
-    }, {
-      multi: true
-    });
+    }, { bypassCollection2: true, multi: true });
 
     Cart.update({}, {
       $set: { "billing.0.shopId": "" }
-    }, {
-      multi: true
-    });
+    }, { bypassCollection2: true, multi: true });
   }
 });

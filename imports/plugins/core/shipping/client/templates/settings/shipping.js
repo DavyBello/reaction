@@ -1,7 +1,10 @@
 import { Template } from "meteor/templating";
 import { Meteor } from "meteor/meteor";
+import { Components } from "@reactioncommerce/reaction-components";
+import ReactComponentOrBlazeTemplate from "/imports/plugins/core/components/lib/ReactComponentOrBlazeTemplate";
+
 /*
- * Template shippinges Helpers
+ * Template shipping helpers
  */
 Template.shippingSettings.onCreated(function () {
   this.autorun(() => {
@@ -21,17 +24,18 @@ Template.shippingSettings.helpers({
       return "hidden";
     }
     return "";
+  },
+  parcelSizeSettings() {
+    return Components.ParcelSizeSettings;
+  },
+  ReactComponentOrBlazeTemplate() {
+    return ReactComponentOrBlazeTemplate;
   }
 });
 
 // toggle shipping methods visibility
 // also toggles shipping method settings
 Template.shippingSettings.events({
-  /**
-   * shippingSettings settings update enabled status for shipping service on change
-   * @param  {event} event    jQuery Event
-   * @return {void}
-   */
   "change input.checkbox-switch.shipping-settings[name=enabled]": (event) => {
     event.preventDefault();
     const settingsKey = event.target.getAttribute("data-key");

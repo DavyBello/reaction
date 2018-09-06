@@ -5,8 +5,8 @@ import { compose } from "recompose";
 import { registerComponent, composeWithTracker } from "@reactioncommerce/reaction-components";
 import { Meteor } from "meteor/meteor";
 import { Reaction } from "/client/api";
-import { ReactionProduct } from "/lib/api";
-import { Tags, Media, Templates } from "/lib/collections";
+import { getPrimaryMediaForItem, ReactionProduct } from "/lib/api";
+import { Tags, Templates } from "/lib/collections";
 import { Countries } from "/client/collections";
 import { ProductAdmin } from "../components";
 
@@ -37,15 +37,14 @@ const wrapComponent = (Comp) => (
     }
 
     handleProductFieldSave = (productId, fieldName, value) => {
-      let updateValue = value;
-      // special case, slugify handles.
-      if (fieldName === "handle") {
-        updateValue = Reaction.getSlug(value);
-      }
-      Meteor.call("products/updateProductField", productId, fieldName, updateValue, (error) => {
+      Meteor.call("products/updateProductField", productId, fieldName, value, (error, result) => {
         if (error) {
           Alerts.toast(error.message, "error");
           this.forceUpdate();
+        } else if (result.handle) {
+          Reaction.Router.go("product", {
+            handle: result.handle
+          });
         }
       });
     }
@@ -110,20 +109,15 @@ function composer(props, onData) {
 
   if (product) {
     if (_.isArray(product.hashtags)) {
-      tags = _.map(product.hashtags, function (id) {
-        return Tags.findOne(id);
-      });
+      tags = Tags.find({ _id: { $in: product.hashtags } }).fetch();
     }
 
     const selectedVariant = ReactionProduct.selectedVariant();
 
     if (selectedVariant) {
-      media = Media.find({
-        "metadata.variantId": selectedVariant._id
-      }, {
-        sort: {
-          "metadata.priority": 1
-        }
+      media = getPrimaryMediaForItem({
+        productId: product._id,
+        variantId: selectedVariant._id
       });
     }
 
@@ -134,18 +128,16 @@ function composer(props, onData) {
       provides: "template",
       templateFor: { $in: ["pdp"] },
       enabled: true
-    }).map((template) => {
-      return {
-        label: template.title,
-        value: template.name
-      };
-    });
+    }).map((template) => ({
+      label: template.title,
+      value: template.name
+    }));
 
     const countries = Countries.find({}).fetch();
 
     onData(null, {
       editFocus: Reaction.state.get("edit/focus") || "productDetails",
-      product: product,
+      product,
       media,
       tags,
       revisonDocumentIds,

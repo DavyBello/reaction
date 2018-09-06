@@ -1,3 +1,4 @@
+import { Reaction } from "/client/api";
 import { Packages } from "/lib/collections";
 import merge from "lodash/merge";
 
@@ -5,7 +6,8 @@ export function createSocialSettings(options) {
   let socialSettings;
 
   const socialPackage = Packages.findOne({
-    name: "reaction-social"
+    name: "reaction-social",
+    shopId: Reaction.getShopId()
   });
 
   if (socialPackage) {
@@ -14,8 +16,8 @@ export function createSocialSettings(options) {
     const socialButtons = [];
 
     if (socialSettings.appsOrder) {
-      const appsOrder = socialSettings.appsOrder;
-      for (let i = 0; i < appsOrder.length; i++) {
+      const { appsOrder } = socialSettings;
+      for (let i = 0; i < appsOrder.length; i += 1) {
         const app = appsOrder[i];
 
         if (typeof socialSettings.apps[app] === "object" && socialSettings.apps[app].enabled) {

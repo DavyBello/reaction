@@ -14,12 +14,8 @@ import { getBillingInfo } from "../../helpers";
 // the first credit paymentMethod on the order
 // returns entire payment method
 function orderCreditMethod(order) {
-  const creditMethods = order.billing && order.billing.filter((value) => {
-    return value && value.paymentMethod && value.paymentMethod.method ===  "credit";
-  });
-  const creditMethod = creditMethods && creditMethods.find((billing) => {
-    billing && billing.shopId === Reaction.getShopId();
-  });
+  const creditMethods = order.billing && order.billing.filter((value) => value && value.paymentMethod && value.paymentMethod.method === "credit");
+  const creditMethod = creditMethods && creditMethods.find((billing) => billing && billing.shopId === Reaction.getShopId());
   return creditMethod || {};
 }
 
@@ -38,7 +34,7 @@ Template.coreOrderShippingInvoice.onCreated(function () {
 
   this.autorun(() => {
     const currentData = Template.currentData();
-    const order = Orders.findOne(currentData.orderId);
+    const order = Orders.findOne({ _id: currentData.orderId });
     const shop = Shops.findOne({});
 
     this.state.set("order", order);
@@ -112,18 +108,12 @@ Template.coreOrderShippingInvoice.helpers({
  * coreOrderAdjustments events
  */
 Template.coreOrderShippingInvoice.events({
-  /**
-   * Click Start Cancel Order
-   * @param {Event} event - Event Object
-   * @param {Template} instance - Blaze Template
-   * @return {void}
-   */
   "click [data-event-action=cancelOrder]": (event, instance) => {
     event.preventDefault();
     const order = instance.state.get("order");
     const invoiceTotal = getBillingInfo(order).invoice && getBillingInfo(order).invoice.total;
     const currencySymbol = instance.state.get("currency").symbol;
-    const paymentMethod = getBillingInfo(order).paymentMethod;
+    const { paymentMethod } = getBillingInfo(order);
 
     Meteor.subscribe("Packages", Reaction.getShopId());
     const packageId = paymentMethod && paymentMethod.paymentPackageId;
@@ -156,7 +146,7 @@ Template.coreOrderShippingInvoice.events({
       let returnToStock;
       if (isConfirm) {
         returnToStock = false;
-        return Meteor.call("orders/cancelOrder", order, returnToStock, err => {
+        return Meteor.call("orders/cancelOrder", order, returnToStock, (err) => {
           if (err) {
             $(".alert").removeClass("hidden").text(err.message);
           }
@@ -164,7 +154,7 @@ Template.coreOrderShippingInvoice.events({
       }
       if (cancel === "cancel") {
         returnToStock = true;
-        return Meteor.call("orders/cancelOrder", order, returnToStock, err => {
+        return Meteor.call("orders/cancelOrder", order, returnToStock, (err) => {
           if (err) {
             $(".alert").removeClass("hidden").text(err.message);
           }

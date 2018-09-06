@@ -1,5 +1,5 @@
 import { Migrations } from "meteor/percolate:migrations";
-import { Reaction } from "/server/api/";
+import Reaction from "/imports/plugins/core/core/server/Reaction";
 import { Shops } from "/lib/collections";
 
 Migrations.add({
@@ -13,11 +13,11 @@ Migrations.add({
       "emails.0.address": { $exists: true }
     }, {
       $set: { shopType: "primary" }
-    });
+    }, { bypassCollection2: true });
   },
   down() {
-    Shops._collection.update({ shopType: "primary" }, {
+    Shops.update({ shopType: "primary" }, {
       $unset: { shopType: "" }
-    });
+    }, { bypassCollection2: true });
   }
 });

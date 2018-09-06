@@ -1,4 +1,4 @@
-import { Reaction } from "/server/api";
+import Reaction from "/imports/plugins/core/core/server/Reaction";
 
 /**
  * @file Accounts core plugin: Manage how members sign into your shop
@@ -24,11 +24,11 @@ Reaction.registerPackage({
     workflow: "coreAccountsWorkflow",
     priority: 1
   }, {
-    route: "/account/profile/verify:email?",
+    route: "/account/profile/verify",
     label: "Account Verify",
     name: "account/verify",
     workflow: "coreAccountsWorkflow",
-    template: "verifyAccount"
+    template: "VerifyAccount"
   }, {
     label: "Account Settings",
     icon: "fa fa-sign-in",

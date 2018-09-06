@@ -1,9 +1,7 @@
 import React, { Component } from "react";
 import PropTypes from "prop-types";
-import moment from "moment";
-import _ from "lodash";
 import { Meteor } from "meteor/meteor";
-import { composeWithTracker } from "@reactioncommerce/reaction-components";
+import { composeWithTracker, withMoment } from "@reactioncommerce/reaction-components";
 import { Orders } from "/lib/collections";
 import { Card, CardHeader, CardBody, CardGroup } from "/imports/plugins/core/ui/client/components";
 import { i18next } from "/client/api";
@@ -12,6 +10,7 @@ import { getShippingInfo } from "../helpers";
 
 class OrderSummaryContainer extends Component {
   static propTypes = {
+    moment: PropTypes.func,
     order: PropTypes.object
   }
 
@@ -23,8 +22,9 @@ class OrderSummaryContainer extends Component {
   }
 
   dateFormat = (context, block) => {
-    const f = block || "MMM DD, YYYY hh:mm:ss A";
-    return moment(context).format(f);
+    const { moment } = this.props;
+    const formatString = block || "MMM DD, YYYY hh:mm:ss A";
+    return (moment && moment(context).format(formatString)) || context.toLocaleString();
   }
 
   tracking = () => {
@@ -36,7 +36,7 @@ class OrderSummaryContainer extends Component {
   }
 
   shipmentStatus = () => {
-    const order = this.props.order;
+    const { order } = this.props;
     const shipment = getShippingInfo(this.props.order);
 
     if (shipment.delivered) {
@@ -48,26 +48,14 @@ class OrderSummaryContainer extends Component {
       };
     }
 
-    const shipped = _.every(shipment.items, (shipmentItem) => {
-      for (const fullItem of order.items) {
-        if (fullItem._id === shipmentItem._id) {
-          if (fullItem.workflow) {
-            if (_.isArray(fullItem.workflow.workflow)) {
-              return _.includes(fullItem.workflow.workflow, "coreOrderItemWorkflow/completed");
-            }
-          }
-        }
+    const shipped = order.items.every((item) => {
+      if (shipment.itemIds.indexOf(item._id) === -1) {
+        // The item is not in this shipment so we don't care
+        return true;
       }
-    });
 
-    const canceled = _.every(shipment.items, (shipmentItem) => {
-      for (const fullItem of order.items) {
-        if (fullItem._id === shipmentItem._id) {
-          if (fullItem.workflow) {
-            return fullItem.workflow.status === "coreOrderItemWorkflow/canceled";
-          }
-        }
-      }
+      return item.workflow && Array.isArray(item.workflow.workflow) &&
+        item.workflow.workflow.indexOf("coreOrderItemWorkflow/shipped") > -1;
     });
 
     if (shipped) {
@@ -78,6 +66,15 @@ class OrderSummaryContainer extends Component {
         label: i18next.t("orderShipping.shipped")
       };
     }
+
+    const canceled = order.items.every((item) => {
+      if (shipment.itemIds.indexOf(item._id) === -1) {
+        // The item is not in this shipment so we don't care
+        return true;
+      }
+
+      return item.workflow && item.workflow.status === "coreOrderItemWorkflow/canceled";
+    });
 
     if (canceled) {
       return {
@@ -130,7 +127,9 @@ class OrderSummaryContainer extends Component {
 }
 
 const composer = (props, onData) => {
-  const orderSub = Meteor.subscribe("Orders");
+  const query = { _id: props.orderId };
+  const options = { limit: 1, skip: 0 };
+  const orderSub = Meteor.subscribe("PaginatedOrders", query, options);
 
   if (orderSub.ready()) {
     // Find current order
@@ -150,8 +149,8 @@ const composer = (props, onData) => {
       }
 
       onData(null, {
-        order: order,
-        profileShippingAddress: profileShippingAddress
+        order,
+        profileShippingAddress
       });
     } else {
       onData(null, {
@@ -162,4 +161,4 @@ const composer = (props, onData) => {
   }
 };
 
-export default composeWithTracker(composer)(OrderSummaryContainer);
+export default composeWithTracker(composer)(withMoment(OrderSummaryContainer));
